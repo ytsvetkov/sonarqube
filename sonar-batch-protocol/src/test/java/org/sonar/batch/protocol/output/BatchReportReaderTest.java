@@ -61,6 +61,8 @@ public class BatchReportReaderTest {
     assertThat(deletedComponentIssues.getIssueList()).hasSize(1);
     assertThat(sut.readComponentMeasures(1)).hasSize(1);
     assertThat(sut.readComponentMeasures(1).get(0).getStringValue()).isEqualTo("value_a");
+    assertThat(sut.readComponentScm(1).getChangesetList()).hasSize(1);
+    assertThat(sut.readComponentScm(1).getChangeset(0).getDate()).isEqualTo(123_456_789L);
   }
 
   @Test(expected = IllegalStateException.class)
@@ -81,6 +83,11 @@ public class BatchReportReaderTest {
   @Test
   public void empty_list_if_no_measure_found() throws Exception {
     assertThat(sut.readComponentMeasures(666)).isEmpty();
+  }
+
+  @Test
+  public void null_if_no_scm_found() throws Exception {
+    assertThat(sut.readComponentScm(666)).isNull();
   }
 
   /**
@@ -117,7 +124,11 @@ public class BatchReportReaderTest {
 
     BatchReport.Measure.Builder measure = BatchReport.Measure.newBuilder()
       .setStringValue("value_a");
-
     writer.writeComponentMeasures(1, Arrays.asList(measure.build()));
+
+    BatchReport.Scm.Builder scm = BatchReport.Scm.newBuilder()
+      .setComponentRef(1)
+      .addChangeset(BatchReport.Scm.Changeset.newBuilder().setDate(123_456_789).setAuthor("jack.daniels").setRevision("123-456-789"));
+    writer.writeComponentScm(scm.build());
   }
 }
