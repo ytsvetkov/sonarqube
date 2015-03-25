@@ -55,7 +55,7 @@ public class SourceLinesCacheTest {
   public void setUp() throws Exception {
     esTester.truncateIndices();
     dir = temp.newFolder();
-    sut = new SourceLinesCache(new BatchReportReader(dir), new SourceLineIndex(esTester.client()));
+    sut = new SourceLinesCache(new SourceLineIndex(esTester.client()));
   }
 
   @Test
@@ -70,7 +70,7 @@ public class SourceLinesCacheTest {
       .addChangesetIndexByLine(1)
       .build());
 
-    sut.init("ANY_UUID", 123_456_789);
+    sut.init("ANY_UUID", 123_456_789, new BatchReportReader(dir));
 
     assertThat(sut.lineAuthor(0)).isEqualTo("charb");
     assertThat(sut.lineAuthor(1)).isEqualTo("charb");
@@ -90,7 +90,7 @@ public class SourceLinesCacheTest {
       newSourceLine("cabu", "123-456-789", 123_456_789, 5)
       );
 
-    sut.init("DEFAULT_UUID", 123);
+    sut.init("DEFAULT_UUID", 123, new BatchReportReader(dir));
 
     assertThat(sut.lineAuthor(0)).isEqualTo("cabu");
     assertThat(sut.lineAuthor(1)).isEqualTo("cabu");
@@ -102,7 +102,7 @@ public class SourceLinesCacheTest {
 
   @Test(expected = IllegalStateException.class)
   public void fail_when_component_ref_is_not_filled() throws Exception {
-    sut.init("ANY_UUID", null);
+    sut.init("ANY_UUID", null, new BatchReportReader(dir));
     sut.lineAuthor(0);
   }
 

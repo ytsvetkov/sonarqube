@@ -62,7 +62,7 @@ public class IssueComputation {
   }
 
   public void processComponentIssues(ComputationContext context, Iterable<BatchReport.Issue> issues, String componentUuid, @Nullable Integer componentReportRef) {
-    linesCache.init(componentUuid, componentReportRef);
+    linesCache.init(componentUuid, componentReportRef, context.getReportReader());
     computeDefaultAssignee(context.getProjectSettings().getString(CoreProperties.DEFAULT_ISSUE_ASSIGNEE));
     for (BatchReport.Issue reportIssue : issues) {
       DefaultIssue issue = toDefaultIssue(context, componentUuid, reportIssue);

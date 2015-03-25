@@ -34,42 +34,42 @@ import java.util.Map;
 
 /**
  * Cache of the lines of the currently processed file. Only a <strong>single</strong> file
- * is kept in memory at a time. Moreover data is loaded on demand to avoid
- * useless db trips.
- * <br />
- * It assumes that db table FILE_SOURCES is up-to-date before using this
- * cache.
+ * is kept in memory at a time. Data is loaded <strong>on demand</strong> (to avoid non necessary
+ * loading).<br />
+ * It relies on:
+ * <ul>
+ *   <li>the SCM information sent in the report for modified files</li>
+ *   <li>the source line index for non-modified files</li>
+ * </ul>
+ *
  */
 public class SourceLinesCache {
 
   private final SourceLineIndex index;
-  private final BatchReportReader reportReader;
+  private BatchReportReader reportReader;
 
   private boolean loaded = false;
   private BatchReport.Scm scm;
   private String currentFileUuid;
   private Integer currentFileReportRef;
 
-  // date of the latest commit on the file
   private long lastCommitDate = 0L;
-
-  // author of the latest commit on the file
   private String lastCommitAuthor = null;
 
-  public SourceLinesCache(BatchReportReader reportReader, SourceLineIndex index) {
-    this.reportReader = reportReader;
+  public SourceLinesCache(SourceLineIndex index) {
     this.index = index;
   }
 
   /**
    * Marks the currently processed component
    */
-  void init(String fileUuid, @Nullable Integer fileReportRef) {
+  void init(String fileUuid, @Nullable Integer fileReportRef, BatchReportReader thisReportReader) {
     loaded = false;
-    currentFileUuid = fileReportRef == null ? null : fileUuid;
+    currentFileUuid = fileUuid;
     currentFileReportRef = fileReportRef;
     lastCommitDate = 0L;
     lastCommitAuthor = null;
+    reportReader = thisReportReader;
     clear();
   }
 
@@ -94,46 +94,60 @@ public class SourceLinesCache {
     return StringUtils.defaultIfEmpty(author, lastCommitAuthor);
   }
 
-  /**
-   * Load only on demand, to avoid useless db requests on files without any new issues
-   */
   private void loadIfNeeded() {
-    if (currentFileUuid == null || currentFileReportRef == null) {
-      throw new IllegalStateException(String.format("uuid (%s) and report reference (%d) must not be null to use the cache", currentFileUuid, currentFileReportRef));
-    }
+    checkState();
+
     if (!loaded) {
-      scm = reportReader.readComponentScm(currentFileReportRef);
+      scm = loadScmFromReport();
       loaded = scm != null;
-      if (!loaded) {
-        List<SourceLineDoc> lines = index.getLines(currentFileUuid);
-        Map<String, BatchReport.Scm.Changeset> changesetByRevision = new HashMap<>();
-        BatchReport.Scm.Builder scmBuilder = BatchReport.Scm.newBuilder()
-          .setComponentRef(currentFileReportRef);
-        for (SourceLineDoc sourceLine : lines) {
-          if (changesetByRevision.get(sourceLine.scmRevision()) == null) {
-            BatchReport.Scm.Changeset changeset = BatchReport.Scm.Changeset.newBuilder()
-              .setAuthor(sourceLine.scmAuthor())
-              .setDate(sourceLine.scmDate().getTime())
-              .setRevision(sourceLine.scmRevision())
-              .build();
-            scmBuilder.addChangeset(changeset);
-            scmBuilder.addChangesetIndexByLine(scmBuilder.getChangesetCount() - 1);
-            changesetByRevision.put(sourceLine.scmRevision(), changeset);
-          } else {
-            scmBuilder.addChangesetIndexByLine(scmBuilder.getChangesetList().indexOf(changesetByRevision.get(sourceLine.scmRevision())));
-          }
-        }
-        scm = scmBuilder.build();
-        loaded = true;
-      }
+    }
 
-      for (BatchReport.Scm.Changeset changeset : scm.getChangesetList()) {
-        if (changeset.hasAuthor() && changeset.hasDate() && changeset.getDate() > lastCommitDate) {
-          lastCommitDate = changeset.getDate();
-          lastCommitAuthor = changeset.getAuthor();
-        }
-      }
+    if (!loaded) {
+      scm = loadLinesFromIndexAndBuildScm();
+      loaded = true;
+    }
 
+    computeLastCommitDateAndAuthor();
+  }
+
+  private BatchReport.Scm loadScmFromReport() {
+    return reportReader.readComponentScm(currentFileReportRef);
+  }
+
+  private BatchReport.Scm loadLinesFromIndexAndBuildScm() {
+    List<SourceLineDoc> lines = index.getLines(currentFileUuid);
+    Map<String, BatchReport.Scm.Changeset> changesetByRevision = new HashMap<>();
+    BatchReport.Scm.Builder scmBuilder = BatchReport.Scm.newBuilder()
+      .setComponentRef(currentFileReportRef);
+    for (SourceLineDoc sourceLine : lines) {
+      if (changesetByRevision.get(sourceLine.scmRevision()) == null) {
+        BatchReport.Scm.Changeset changeset = BatchReport.Scm.Changeset.newBuilder()
+          .setAuthor(sourceLine.scmAuthor())
+          .setDate(sourceLine.scmDate().getTime())
+          .setRevision(sourceLine.scmRevision())
+          .build();
+        scmBuilder.addChangeset(changeset);
+        scmBuilder.addChangesetIndexByLine(scmBuilder.getChangesetCount() - 1);
+        changesetByRevision.put(sourceLine.scmRevision(), changeset);
+      } else {
+        scmBuilder.addChangesetIndexByLine(scmBuilder.getChangesetList().indexOf(changesetByRevision.get(sourceLine.scmRevision())));
+      }
+    }
+    return scmBuilder.build();
+  }
+
+  private void computeLastCommitDateAndAuthor() {
+    for (BatchReport.Scm.Changeset changeset : scm.getChangesetList()) {
+      if (changeset.hasAuthor() && changeset.hasDate() && changeset.getDate() > lastCommitDate) {
+        lastCommitDate = changeset.getDate();
+        lastCommitAuthor = changeset.getAuthor();
+      }
+    }
+  }
+
+  private void checkState() {
+    if (currentFileReportRef == null) {
+      throw new IllegalStateException("Report component reference must not be null to use the cache");
     }
   }
 
