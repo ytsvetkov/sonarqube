@@ -689,6 +689,7 @@ class ServerComponents {
     pico.addSingletons(Arrays.asList(
       SystemRestartWsAction.class,
       SystemInfoWsAction.class,
+      SystemStatusWsAction.class,
       SystemWs.class,
       SystemMonitor.class,
       SonarQubeMonitor.class,
