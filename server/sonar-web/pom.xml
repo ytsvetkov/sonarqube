@@ -18,6 +18,24 @@
     <sonar.javascript.lcov.reportPath>target/js-coverage/lcov.info</sonar.javascript.lcov.reportPath>
   </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.jruby</groupId>
+            <artifactId>jruby-complete</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
   <build>
     <resources>
       <resource>

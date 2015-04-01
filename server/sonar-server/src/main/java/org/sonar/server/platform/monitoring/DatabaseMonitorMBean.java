@@ -69,4 +69,5 @@ public interface DatabaseMonitorMBean {
    * Timeout in seconds before an abandoned connection can be removed.
    */
   int getPoolRemoveAbandonedTimeoutSeconds();
+
 }

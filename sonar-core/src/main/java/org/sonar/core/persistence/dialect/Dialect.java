@@ -87,4 +87,5 @@ public interface Dialect {
    * @since 5.0
    */
   int getScrollSingleRowFetchSize();
+
 }

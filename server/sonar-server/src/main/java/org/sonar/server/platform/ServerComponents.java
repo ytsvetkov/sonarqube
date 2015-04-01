@@ -145,6 +145,8 @@ import org.sonar.server.permission.InternalPermissionTemplateService;
 import org.sonar.server.permission.PermissionFinder;
 import org.sonar.server.permission.ws.PermissionsWs;
 import org.sonar.server.platform.monitoring.*;
+import org.sonar.server.platform.ruby.PlatformRackBridge;
+import org.sonar.server.platform.ruby.PlatformRubyBridge;
 import org.sonar.server.platform.ws.*;
 import org.sonar.server.plugins.*;
 import org.sonar.server.properties.ProjectSettingsFactory;
@@ -201,6 +203,7 @@ import org.sonar.server.view.index.ViewIndexer;
 import org.sonar.server.ws.ListingWs;
 import org.sonar.server.ws.WebServiceEngine;
 
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -208,19 +211,24 @@ import java.util.Properties;
 
 class ServerComponents {
 
-  private final Object[] rootComponents;
-  private List level4AddedComponents = Lists.newArrayList();
+  private final Platform platform;
+  private final Properties properties;
+  @Nullable
+  private final Object[] extraRootComponents;
+  private final List<Object> level4AddedComponents = Lists.newArrayList();
 
-  ServerComponents(Platform platform, Properties properties, Object... rootComponents) {
-    this.rootComponents = Lists.newArrayList(properties, platform, rootComponents)
-      .toArray(new Object[rootComponents.length + 2]);
+  ServerComponents(Platform platform, Properties properties, Object... extraRootComponents) {
+    this.platform = platform;
+    this.properties = properties;
+    this.extraRootComponents = extraRootComponents;
   }
 
   /**
    * All the stuff required to connect to database
    */
-  Collection level1Components() {
-    List components = Lists.newArrayList(rootComponents);
+  Collection<?> level1Components() {
+    List<Object> components = Lists.newArrayList(platform, properties);
+    addExtraRootComponents(components);
     components.addAll(Arrays.asList(
       ServerSettings.class,
       ServerImpl.class,
@@ -239,6 +247,9 @@ class ServerComponents {
       TempFolderCleaner.class,
       new TempFolderProvider(),
       System2.INSTANCE,
+
+      // rack bridges
+      PlatformRackBridge.class,
 
       // DB
       DbClient.class,
@@ -293,14 +304,27 @@ class ServerComponents {
     return components;
   }
 
+  private void addExtraRootComponents(List<Object> components) {
+    if (this.extraRootComponents != null) {
+      for (Object extraRootComponent : this.extraRootComponents) {
+        if (extraRootComponent != null) {
+          components.add(extraRootComponent);
+        }
+      }
+    }
+  }
+
   /**
    * The stuff required to display the db upgrade form in webapp.
    * Needs to be connected to db.
    */
-  Collection level2Components() {
-    return Lists.newArrayList(
+  Collection<Object> level2Components() {
+    return Lists.<Object>newArrayList(
       DefaultServerUpgradeStatus.class,
       DatabaseMigrator.class,
+
+      // depends on Ruby
+      PlatformRubyBridge.class,
 
       // plugins
       ServerPluginJarsInstaller.class,
@@ -322,7 +346,7 @@ class ServerComponents {
    * The core components that complete the initialization of database
    * when its schema is up-to-date.
    */
-  Collection level3Components() {
+  Collection<Object> level3Components() {
     return Lists.newArrayList(
       PersistentSettings.class,
       DefaultDatabaseConnector.class,
